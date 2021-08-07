@@ -1,0 +1,177 @@
+# ---
+# name: Continuous Integration
+# on:
+#   pull_request:
+#     branches: ["*", series/*]
+#     paths-ignore:
+#       - ".dockerignore"
+#       - ".github/workflow/ci.yaml"
+#       - "Changelog.md"
+#       - "Dockerfile"
+#       - "doc/**"
+#       - "docker/**"
+#       - "LICENSE"
+#       - "README.md"
+#       # - "tests/e2e/**"
+#   push:
+#     branches: ["*", series/*]
+#     tags: [v*]
+#     paths-ignore:
+#       - ".dockerignore"
+#       - ".github/workflow/ci.yaml"
+#       - "Changelog.md"
+#       - "Dockerfile"
+#       - "doc/**"
+#       - "docker/**"
+#       - "LICENSE"
+#       - "README.md"
+#       # - "tests/e2e/**"
+
+# jobs:
+#   build:
+#     name: Build and Test
+#     runs-on: ubuntu-latest
+#     env:
+#       HTTP4S_DEMO_CODEGEN_DB_HOST: localhost
+#       HTTP4S_DEMO_CODEGEN_DB_PORT: 5432
+#       HTTP4S_DEMO_CODEGEN_DB_USER: codegenuser
+#       HTTP4S_DEMO_CODEGEN_DB_PASSWORD: postgres
+#       HTTP4S_DEMO_CODEGEN_DB_NAME: codegendb
+#     services:
+#       postgres:
+#         image: postgres:12-alpine
+#         env:
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_USER: codegenuser
+#           POSTGRES_DB: codegendb
+#         # Set health checks to wait until postgres has started
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 5432:5432
+
+#     steps:
+#       - name: Check out repository code
+#         uses: actions/checkout@v2
+#       - name: Coursier cache
+#         uses: coursier/cache-action@v6
+#       - name: Setup
+#         uses: olafurpg/setup-scala@v10
+#         with:
+#           java-version: adopt@1.11
+#       - name: Migrate
+#         run: csbt flyway/flywayMigrate
+#       - name: Format check
+#         run: csbt scalafmtCheckAll
+#       - name: Compile
+#         run: csbt "compile; test:compile; it:compile"
+#       - name: Scalafix check
+#         run: csbt "scalafixAll --check"
+#       - name: Run Unit Tests
+#         run: csbt test
+#       - name: Run Integration Tests
+#         run: csbt it:test
+#   publish:
+#     name: Publish Release Docker Image
+#     needs: [build]
+#     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+#     runs-on: ubuntu-latest
+#     env:
+#       HTTP4S_DEMO_CODEGEN_DB_HOST: localhost
+#       HTTP4S_DEMO_CODEGEN_DB_PORT: 5432
+#       HTTP4S_DEMO_CODEGEN_DB_USER: codegenuser
+#       HTTP4S_DEMO_CODEGEN_DB_PASSWORD: postgres
+#       HTTP4S_DEMO_CODEGEN_DB_NAME: codegendb
+#       HTTP4S_DEMO_DOCKER_JAVA_IMAGE: azul/zulu-openjdk-alpine:11-jre-headless
+#     services:
+#       postgres:
+#         image: postgres:12-alpine
+#         env:
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_USER: codegenuser
+#           POSTGRES_DB: codegendb
+#         # Set health checks to wait until postgres has started
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 5432:5432
+#     steps:
+#       - name: Check out repository code
+#         uses: actions/checkout@v2
+#       - name: Coursier cache
+#         uses: coursier/cache-action@v6
+#       - name: Setup
+#         uses: olafurpg/setup-scala@v10
+#         with:
+#           java-version: adopt@1.11
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v1
+#         with:
+#           username: rohansircar
+#           password: ${{ secrets.DOCKER_LOGIN_PASSWORD }}
+#       - name: Migrate
+#         run: csbt flyway/flywayMigrate
+#       - name: Publish Tag
+#         if: startsWith(github.ref, 'refs/tags/v')
+#         run: |
+#           csbt docker:publish
+#       - name: Publish Latest
+#         if: github.ref == 'refs/heads/main'
+#         env:
+#           HTTP4S_DEMO_DOCKER_PUBLISH_TAG: latest
+#         run: |
+#           csbt docker:publish
+
+#   publish-devel:
+#     name: Publish Devel Docker Image
+#     needs: [build]
+#     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/devel'
+#     runs-on: ubuntu-latest
+#     env:
+#       HTTP4S_DEMO_CODEGEN_DB_HOST: localhost
+#       HTTP4S_DEMO_CODEGEN_DB_PORT: 5432
+#       HTTP4S_DEMO_CODEGEN_DB_USER: codegenuser
+#       HTTP4S_DEMO_CODEGEN_DB_PASSWORD: postgres
+#       HTTP4S_DEMO_CODEGEN_DB_NAME: codegendb
+#       HTTP4S_DEMO_DOCKER_JAVA_IMAGE: azul/zulu-openjdk-alpine:11-jre-headless
+#       HTTP4S_DEMO_DOCKER_PUBLISH_TAG: devel
+#     services:
+#       postgres:
+#         image: postgres:12-alpine
+#         env:
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_USER: codegenuser
+#           POSTGRES_DB: codegendb
+#         # Set health checks to wait until postgres has started
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           - 5432:5432
+#     steps:
+#       - name: Check out repository code
+#         uses: actions/checkout@v2
+#       - name: Coursier cache
+#         uses: coursier/cache-action@v6
+#       - name: Setup
+#         uses: olafurpg/setup-scala@v10
+#         with:
+#           java-version: adopt@1.11
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v1
+#         with:
+#           username: rohansircar
+#           password: ${{ secrets.DOCKER_LOGIN_PASSWORD }}
+#       - name: Migrate
+#         run: csbt flyway/flywayMigrate
+#       - name: Publish
+#         run: |
+#           csbt docker:publish
